@@ -22,6 +22,29 @@ class GameViewModel : ViewModel() {
     private val _scores = mutableStateListOf<PlayerScore>()
     val scores: List<PlayerScore> = _scores
     private val currentAttempts = mutableListOf<Long>()
+    var nameError by mutableStateOf<String?>(null)
+        private set
+
+    fun isNameAvailable(name: String): Boolean {
+        return _scores.none { it.name.equals(name, ignoreCase = true) }
+    }
+
+    fun validateAndSetName(name: String) {
+        when {
+            name.isBlank() -> {
+                nameError = "Name cannot be empty"
+            }
+            !isNameAvailable(name) -> {
+                nameError = "This name has already played"
+            }
+            else -> {
+                nameError = null
+                playerName = name
+                currentScreen = Screen.Game
+                resetTarget()
+            }
+        }
+    }
 
     fun navigateToGame() {
         if (playerName.isNotBlank()) {
@@ -31,7 +54,11 @@ class GameViewModel : ViewModel() {
     }
 
     private fun resetTarget() {
-        targetPosition = Pair(Random.nextFloat(), Random.nextFloat())
+        // Adjust random position to account for screen edges
+        targetPosition = Pair(
+            Random.nextFloat() * 0.8f + 0.1f,  // Keep button 10% away from edges
+            Random.nextFloat() * 0.7f + 0.1f    // Account for top bar and bottom space
+        )
         startTime = System.currentTimeMillis()
     }
 
@@ -59,6 +86,7 @@ class GameViewModel : ViewModel() {
         playerName = ""
         reactionTime = 0
         attemptCount = 0
+        nameError = null
         currentAttempts.clear()
         currentScreen = Screen.Welcome
     }

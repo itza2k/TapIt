@@ -26,10 +26,8 @@ class MainActivity : ComponentActivity() {
                 ) {
                     when (viewModel.currentScreen) {
                         Screen.Welcome -> WelcomeScreen(
-                            onNameSubmit = {
-                                viewModel.playerName = it
-                                viewModel.navigateToGame()
-                            }
+                            onNameSubmit = viewModel::validateAndSetName,
+                            nameError = viewModel.nameError
                         )
                         Screen.Game -> GameScreen(
                             playerName = viewModel.playerName,
