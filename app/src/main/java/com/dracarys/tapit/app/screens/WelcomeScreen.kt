@@ -13,7 +13,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 
 @Composable
 fun WelcomeScreen(
-    onNameSubmit: (String) -> Unit
+    onNameSubmit: (String) -> Unit,
+    nameError: String? = null
 ) {
     var name by remember { mutableStateOf("") }
     var showCredits by remember { mutableStateOf(false) }
@@ -46,6 +47,10 @@ fun WelcomeScreen(
                 onValueChange = { name = it },
                 label = { Text("Enter your name") },
                 shape = RoundedCornerShape(12.dp),
+                isError = nameError != null,
+                supportingText = nameError?.let {
+                    { Text(it, color = MaterialTheme.colorScheme.error) }
+                },
                 modifier = Modifier
                     .fillMaxWidth(0.8f)
                     .padding(bottom = 16.dp)
