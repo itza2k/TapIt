@@ -1,16 +1,12 @@
 package com.dracarys.tapit.app.screens
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
 
 @Composable
 fun GameScreen(
@@ -19,39 +15,40 @@ fun GameScreen(
     reactionTime: Long,
     onTargetTap: () -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "Player: $playerName",
-            modifier = Modifier.padding(16.dp)
-        )
-
-        Text(
-            text = "Last Reaction Time: ${reactionTime}ms",
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        Canvas(
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Score display at the top
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures { tapOffset ->
-                        onTargetTap()
-                    }
-                }
+                .align(Alignment.TopCenter)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val circleRadius = 50f
-            drawCircle(
-                color = Color.Red,
-                radius = circleRadius,
-                center = Offset(
-                    x = targetPosition.first * (size.width - 2 * circleRadius) + circleRadius,
-                    y = targetPosition.second * (size.height - 2 * circleRadius) + circleRadius
-                )
+            Text(
+                text = "Player: $playerName",
+                style = MaterialTheme.typography.titleMedium
             )
+
+            Text(
+                text = "Reaction Time: ${reactionTime}ms",
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+
+        // Target button
+        Button(
+            onClick = onTargetTap,
+            modifier = Modifier
+                .size(100.dp)
+                .offset(
+                    x = (targetPosition.first * (LocalConfiguration.current.screenWidthDp - 100)).dp,
+                    y = (targetPosition.second * (LocalConfiguration.current.screenHeightDp - 100)).dp
+                )
+                .align(Alignment.TopStart),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Text("Tap!")
         }
     }
 }
