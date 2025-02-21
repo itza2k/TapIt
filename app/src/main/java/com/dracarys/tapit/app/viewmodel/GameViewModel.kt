@@ -1,16 +1,29 @@
 package com.dracarys.tapit.app.viewmodel
 
+import android.content.Context
 import androidx.compose.runtime.*
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.*
+import kotlinx.coroutines.*
+import kotlinx.serialization.*
+import kotlinx.serialization.json.*
+import java.io.File
 import kotlin.random.Random
 
+@Serializable
 data class PlayerScore(
     val name: String,
     val averageTime: Double,
-    val attempts: List<Long>
+    val attempts: List<Long>,
+    val dateTime: Long = System.currentTimeMillis()
 )
 
-class GameViewModel : ViewModel() {
+enum class GameState {
+    COUNTDOWN,
+    PLAYING,
+    PAUSED
+}
+
+class GameViewModel(private val context: Context) : ViewModel() {
     var playerName by mutableStateOf("")
     var reactionTime by mutableStateOf(0L)
     var targetPosition by mutableStateOf(Pair(0f, 0f))
@@ -24,6 +37,41 @@ class GameViewModel : ViewModel() {
     private val currentAttempts = mutableListOf<Long>()
     var nameError by mutableStateOf<String?>(null)
         private set
+
+    var gameState by mutableStateOf(GameState.COUNTDOWN)
+    var countdownValue by mutableStateOf(3)
+    private var gameJob: Job? = null
+
+    init {
+        loadScores()
+    }
+
+    private fun loadScores() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = File(context.filesDir, "scores.json")
+                if (file.exists()) {
+                    val jsonString = file.readText()
+                    val scores = Json.decodeFromString<List<PlayerScore>>(jsonString)
+                    _scores.clear()
+                    _scores.addAll(scores)
+                }
+            } catch (e: Exception) {
+                // Handle error
+            }
+        }
+    }
+
+    private fun saveScores() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val jsonString = Json.encodeToString(_scores.toList())
+                File(context.filesDir, "scores.json").writeText(jsonString)
+            } catch (e: Exception) {
+                // Handle error
+            }
+        }
+    }
 
     fun isNameAvailable(name: String): Boolean {
         return _scores.none { it.name.equals(name, ignoreCase = true) }
@@ -41,7 +89,7 @@ class GameViewModel : ViewModel() {
                 nameError = null
                 playerName = name
                 currentScreen = Screen.Game
-                resetTarget()
+                startCountdown()
             }
         }
     }
@@ -49,7 +97,7 @@ class GameViewModel : ViewModel() {
     fun navigateToGame() {
         if (playerName.isNotBlank()) {
             currentScreen = Screen.Game
-            resetTarget()
+            startCountdown()
         }
     }
 
@@ -62,20 +110,31 @@ class GameViewModel : ViewModel() {
         startTime = System.currentTimeMillis()
     }
 
+    fun startCountdown() {
+        gameState = GameState.COUNTDOWN
+        countdownValue = 3
+        gameJob = viewModelScope.launch {
+            while (countdownValue > 0) {
+                delay(1000)
+                countdownValue--
+            }
+            gameState = GameState.PLAYING
+            resetTarget()
+        }
+    }
+
     fun onTargetTap() {
+        if (gameState != GameState.PLAYING) return
+
         val currentTime = System.currentTimeMillis()
         reactionTime = currentTime - startTime
         currentAttempts.add(reactionTime)
         attemptCount++
 
         if (attemptCount >= maxAttempts) {
-            // Calculate average and store score
             val average = currentAttempts.average()
             _scores.add(PlayerScore(playerName, average, currentAttempts.toList()))
-
-            // Reset for next player
-            currentAttempts.clear()
-            attemptCount = 0
+            saveScores()
             currentScreen = Screen.Result
         } else {
             resetTarget()
