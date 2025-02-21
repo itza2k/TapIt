@@ -1,6 +1,8 @@
 package com.dracarys.tapit.app.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,30 +20,70 @@ fun ResultScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Game Results",
-            style = MaterialTheme.typography.headlineMedium
+            text = "Leaderboard",
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.primary
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        bestPlayer?.let { player ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        "👑 Best Player: ${player.name}",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Text(
+                        "Average: %.2f ms".format(player.averageTime),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        bestPlayer?.let { player ->
-            Text("Best Player: ${player.name}")
-            Text("Average Time: %.2f ms".format(player.averageTime))
-            Spacer(modifier = Modifier.height(16.dp))
+        LazyColumn {
+            items(scores.sortedBy { it.averageTime }) { score ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(score.name)
+                        Text("%.2f ms".format(score.averageTime))
+                    }
+                }
+            }
         }
 
-        scores.forEach { score ->
-            Text("${score.name}: %.2f ms".format(score.averageTime))
-        }
+        Spacer(modifier = Modifier.weight(1f))
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Button(onClick = onNewGame) {
-            Text("Start New Game")
+        Button(
+            onClick = onNewGame,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Play Again")
         }
     }
 }
