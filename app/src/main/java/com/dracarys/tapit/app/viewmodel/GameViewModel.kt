@@ -1,16 +1,15 @@
 package com.dracarys.tapit.app.viewmodel
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.compose.runtime.*
 import androidx.lifecycle.*
 import kotlinx.coroutines.*
-import kotlinx.serialization.*
-import kotlinx.serialization.json.*
-import java.io.File
+import java.util.UUID
 import kotlin.random.Random
 
-@Serializable
 data class PlayerScore(
+    val playerId: String,
     val name: String,
     val averageTime: Double,
     val attempts: List<Long>,
@@ -24,7 +23,17 @@ enum class GameState {
 }
 
 class GameViewModel(private val context: Context) : ViewModel() {
-    var playerName by mutableStateOf("")
+    private val sharedPreferences: SharedPreferences =
+        context.getSharedPreferences("TapItPrefs", Context.MODE_PRIVATE)
+
+    private var _playerName = mutableStateOf("")
+    var playerName: String
+        get() = _playerName.value
+        set(value) {
+            _playerName.value = value
+            sharedPreferences.edit().putString("lastPlayerName", value).commit()
+        }
+
     var reactionTime by mutableStateOf(0L)
     var targetPosition by mutableStateOf(Pair(0f, 0f))
     var currentScreen by mutableStateOf(Screen.Welcome)
@@ -44,33 +53,37 @@ class GameViewModel(private val context: Context) : ViewModel() {
 
     init {
         loadScores()
+        // Load saved name on initialization
+        _playerName.value = sharedPreferences.getString("lastPlayerName", "") ?: ""
     }
 
     private fun loadScores() {
-        viewModelScope.launch(Dispatchers.IO) {
+        val scores = sharedPreferences.getStringSet("scores", null)
+        scores?.forEach { scoreString ->
             try {
-                val file = File(context.filesDir, "scores.json")
-                if (file.exists()) {
-                    val jsonString = file.readText()
-                    val scores = Json.decodeFromString<List<PlayerScore>>(jsonString)
-                    _scores.clear()
-                    _scores.addAll(scores)
+                val parts = scoreString.split("|")
+                if (parts.size >= 4) {
+                    val attempts = parts[3].split(",").mapNotNull { it.toLongOrNull() }
+                    _scores.add(
+                        PlayerScore(
+                            playerId = parts[0],
+                            name = parts[1],
+                            averageTime = parts[2].toDoubleOrNull() ?: 0.0,
+                            attempts = attempts
+                        )
+                    )
                 }
             } catch (e: Exception) {
-                // Handle error
+                e.printStackTrace()
             }
         }
     }
 
-    private fun saveScores() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val jsonString = Json.encodeToString(_scores.toList())
-                File(context.filesDir, "scores.json").writeText(jsonString)
-            } catch (e: Exception) {
-                // Handle error
-            }
-        }
+    private fun saveScore(score: PlayerScore) {
+        val scoreString = "${score.playerId}|${score.name}|${score.averageTime}|${score.attempts.joinToString(",")}"
+        val scores = sharedPreferences.getStringSet("scores", mutableSetOf()) ?: mutableSetOf()
+        scores.add(scoreString)
+        sharedPreferences.edit().putStringSet("scores", scores).commit()
     }
 
     fun isNameAvailable(name: String): Boolean {
@@ -82,12 +95,9 @@ class GameViewModel(private val context: Context) : ViewModel() {
             name.isBlank() -> {
                 nameError = "Name cannot be empty"
             }
-            !isNameAvailable(name) -> {
-                nameError = "This name has already played"
-            }
             else -> {
                 nameError = null
-                playerName = name
+                playerName = name // This will automatically persist
                 currentScreen = Screen.Game
                 startCountdown()
             }
@@ -113,13 +123,24 @@ class GameViewModel(private val context: Context) : ViewModel() {
     fun startCountdown() {
         gameState = GameState.COUNTDOWN
         countdownValue = 3
+        gameJob?.cancel()
+
         gameJob = viewModelScope.launch {
-            while (countdownValue > 0) {
-                delay(1000)
-                countdownValue--
+            try {
+                for (i in 3 downTo 1) {
+                    countdownValue = i
+                    delay(1000)
+                }
+                withContext(Dispatchers.Main) {
+                    gameState = GameState.PLAYING
+                    resetTarget()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Reset on error
+                gameState = GameState.COUNTDOWN
+                countdownValue = 3
             }
-            gameState = GameState.PLAYING
-            resetTarget()
         }
     }
 
@@ -133,8 +154,10 @@ class GameViewModel(private val context: Context) : ViewModel() {
 
         if (attemptCount >= maxAttempts) {
             val average = currentAttempts.average()
-            _scores.add(PlayerScore(playerName, average, currentAttempts.toList()))
-            saveScores()
+            val playerId = UUID.randomUUID().toString()
+            val score = PlayerScore(playerId, playerName, average, currentAttempts.toList())
+            _scores.add(score)
+            saveScore(score)
             currentScreen = Screen.Result
         } else {
             resetTarget()
@@ -142,16 +165,22 @@ class GameViewModel(private val context: Context) : ViewModel() {
     }
 
     fun startNewGame() {
-        playerName = ""
         reactionTime = 0
         attemptCount = 0
         nameError = null
         currentAttempts.clear()
         currentScreen = Screen.Welcome
+        // Don't clear playerName anymore
     }
 
     fun getBestPlayer(): PlayerScore? {
         return _scores.minByOrNull { it.averageTime }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // Force save preferences
+        sharedPreferences.edit().commit()
     }
 }
 
