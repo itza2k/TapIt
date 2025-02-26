@@ -257,6 +257,12 @@ fun GameScreen(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .blur(24.dp)
+                            .alpha(glowAlpha) // make that stuff glow
+                    )
 
                     Text(
                         "TAP!T",
